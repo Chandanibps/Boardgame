@@ -2,52 +2,55 @@ name: CICD pipeline
 
 on:
   push:
-    branches: [ "main" ]
-
+    branches: 
+      - "main"
 
 jobs:
   build:
-
     runs-on: self-hosted
 
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
+
     - name: Set up JDK 17
       uses: actions/setup-java@v4
       with:
         java-version: '17'
         distribution: 'temurin'
         cache: maven
+
     - name: Build with Maven
       run: mvn -B package --file pom.xml
 
-    - uses: actions/upload-artifact@v4
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
       with:
         name: Boardgame
         path: target/*.jar
 
-    - name: Trivy FS scan
+    - name: Trivy FS Scan
       run: |
         trivy fs --format table -o fs.html .
-        
+
     - name: SonarQube Scan
-      uses: sonarsource/sonarqube-scan-action@master
+      uses: sonarsource/sonarqube-scan-action@v2  # Specify stable version
       env:
         SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
     - name: Install jq
       run: |
           sudo apt-get update
           sudo apt-get install -y jq
-        
+
     - name: SonarQube Quality Gate check
       id: sonarqube-quality-gate-check
       uses: sonarsource/sonarqube-quality-gate-action@master
-      # Force to fail step after specific time.
       timeout-minutes: 5
       env:
-       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-       SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
 
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v3
@@ -76,7 +79,9 @@ jobs:
     - name: Set up kubectl
       uses: tale/kubectl-action@v1
       with:
-          base64-kube-config: ${{ secrets.KUBE_CONFIG }} 
-    - run: |
-          kubectl apply -f deployment.yml -n webapps 
+        base64-kube-config: ${{ secrets.KUBE_CONFIG }}
 
+    - name: Apply Kubernetes Deployment
+      run: |
+          kubectl apply -f deployment.yml -n webapps
+          kubectl get svc -n webapps
